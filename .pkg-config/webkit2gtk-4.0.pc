@@ -1,0 +1,4 @@
+Name: webkit2gtk-4.0
+Description: Compatibility shim — proxies to webkit2gtk-4.1
+Version: 2.44.0
+Requires: webkit2gtk-4.1

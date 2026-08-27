@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MD Preview</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --color-fg: #1f2328;
+  --color-fg-muted: #656d76;
+  --color-bg: #ffffff;
+  --color-bg-subtle: #f6f8fa;
+  --color-border: #d1d9e0;
+  --color-border-active: #fd8c73;
+  --color-link: #0969da;
+  --color-code-bg: #eff1f3;
+  --color-tab-hover: #eaeef2;
+}
+
+[data-theme="dark"] {
+  --color-fg: #e6edf3;
+  --color-fg-muted: #9198a1;
+  --color-bg: #0d1117;
+  --color-bg-subtle: #161b22;
+  --color-border: #30363d;
+  --color-border-active: #f78166;
+  --color-link: #4493f8;
+  --color-code-bg: #282e33;
+  --color-tab-hover: #1c2128;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--color-fg);
+  background-color: var(--color-bg);
+  transition: color 0.15s, background-color 0.15s;
+}
+
+/* Toolbar (right side of tab bar) */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  padding: 0 6px;
+  flex-shrink: 0;
+}
+.toolbar button {
+  background: none;
+  border: none;
+  color: var(--color-fg-muted);
+  cursor: pointer;
+  font-size: 15px;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.toolbar button:hover { background: var(--color-tab-hover); color: var(--color-fg); }
+.toolbar .zoom-label {
+  font-size: 11px;
+  color: var(--color-fg-muted);
+  min-width: 32px;
+  text-align: center;
+  user-select: none;
+}
+
+/* Tab bar */
+.tab-bar {
+  display: flex;
+  background: var(--color-bg-subtle);
+  border-bottom: 1px solid var(--color-border);
+  overflow-x: auto;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  min-height: 38px;
+}
+.tab-bar::-webkit-scrollbar { height: 2px; }
+.tab-bar::-webkit-scrollbar-thumb { background: var(--color-border); }
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--color-fg-muted);
+  cursor: pointer;
+  border-right: 1px solid var(--color-border);
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  user-select: none;
+  transition: background 0.1s;
+}
+.tab:hover { background: var(--color-tab-hover); }
+.tab.active {
+  color: var(--color-fg);
+  background: var(--color-bg);
+  border-bottom-color: var(--color-border-active);
+}
+
+.tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+.tab:hover .tab-close, .tab.active .tab-close { opacity: 0.5; }
+.tab-close:hover { opacity: 1 !important; background: var(--color-border); }
+
+/* Tab panels */
+.tab-panel { display: none; padding: 32px; }
+.tab-panel.active { display: block; }
+
+/* GitHub Flavored Markdown */
+.markdown-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 0 16px;
+  word-wrap: break-word;
+}
+
+.markdown-body h1, .markdown-body h2, .markdown-body h3,
+.markdown-body h4, .markdown-body h5, .markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.markdown-body h1 { font-size: 2em; padding-bottom: 0.3em; border-bottom: 1px solid var(--color-border); }
+.markdown-body h2 { font-size: 1.5em; padding-bottom: 0.3em; border-bottom: 1px solid var(--color-border); }
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em; }
+.markdown-body h5 { font-size: 0.875em; }
+.markdown-body h6 { font-size: 0.85em; color: var(--color-fg-muted); }
+
+.markdown-body p { margin-top: 0; margin-bottom: 16px; }
+.markdown-body a { color: var(--color-link); text-decoration: none; }
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+
+.markdown-body ul, .markdown-body ol { padding-left: 2em; margin-top: 0; margin-bottom: 16px; }
+.markdown-body li { margin-top: 0.25em; }
+
+.markdown-body input[type="checkbox"] {
+  margin: 0 0.35em 0.25em -1.4em;
+  vertical-align: middle;
+}
+
+.markdown-body code {
+  padding: 0.2em 0.4em;
+  font-size: 85%;
+  white-space: break-spaces;
+  background-color: var(--color-code-bg);
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+.markdown-body pre {
+  padding: 16px;
+  overflow: auto;
+  font-size: 85%;
+  line-height: 1.45;
+  color: var(--color-fg);
+  background-color: var(--color-bg-subtle);
+  border-radius: 6px;
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.markdown-body pre code {
+  display: inline;
+  padding: 0;
+  overflow: visible;
+  line-height: inherit;
+  word-wrap: normal;
+  background-color: transparent;
+  border: 0;
+  font-size: 100%;
+  white-space: pre;
+}
+
+.markdown-body blockquote {
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+  color: var(--color-fg-muted);
+  border-left: 0.25em solid var(--color-border);
+}
+
+.markdown-body table {
+  border-spacing: 0;
+  border-collapse: collapse;
+  margin-top: 0;
+  margin-bottom: 16px;
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow: auto;
+}
+.markdown-body table th, .markdown-body table td {
+  padding: 6px 13px;
+  border: 1px solid var(--color-border);
+}
+.markdown-body table th { font-weight: 600; background-color: var(--color-bg-subtle); }
+.markdown-body table tr:nth-child(2n) { background-color: var(--color-bg-subtle); }
+
+.markdown-body hr {
+  height: 0.25em;
+  padding: 0;
+  margin: 24px 0;
+  background-color: var(--color-border);
+  border: 0;
+}
+
+.markdown-body img { max-width: 100%; border-radius: 6px; }
+.markdown-body del { color: var(--color-fg-muted); }
+</style>
+</head>
+<body>
+<div class="tab-bar" id="tabBar">
+  <div class="toolbar">
+    <button onclick="zoomOut()" title="Zoom out (Ctrl+-)">&#x2212;</button>
+    <span class="zoom-label" id="zoomLabel">180%</span>
+    <button onclick="zoomIn()" title="Zoom in (Ctrl++)">&#x2b;</button>
+    <button onclick="zoomReset()" title="Reset zoom (Ctrl+0)">&#x21ba;</button>
+    <button onclick="toggleTheme()" id="themeBtn" title="Toggle theme (Ctrl+Shift+L)">&#x263e;</button>
+  </div>
+</div>
+<div id="tabPanels"></div>
+<script>
+let activeTabId = null;
+
+function addTab(id, title, html) {
+  const bar = document.getElementById('tabBar');
+  const panels = document.getElementById('tabPanels');
+  const toolbar = document.querySelector('.toolbar');
+
+  const tab = document.createElement('div');
+  tab.className = 'tab';
+  tab.dataset.id = id;
+  tab.onclick = function() { switchTab(id); };
+
+  const titleSpan = document.createElement('span');
+  titleSpan.className = 'tab-title';
+  titleSpan.textContent = title;
+  tab.appendChild(titleSpan);
+
+  const close = document.createElement('span');
+  close.className = 'tab-close';
+  close.textContent = '\u00d7';
+  close.onclick = function(e) { e.stopPropagation(); closeTab(id); };
+  tab.appendChild(close);
+
+  bar.insertBefore(tab, toolbar);
+
+  const panel = document.createElement('div');
+  panel.className = 'tab-panel';
+  panel.id = 'panel-' + id;
+  panel.innerHTML = '<article class="markdown-body">' + html + '</article>';
+  panels.appendChild(panel);
+
+  switchTab(id);
+}
+
+function updateTabContent(id, html) {
+  var panel = document.getElementById('panel-' + id);
+  if (panel) {
+    panel.innerHTML = '<article class="markdown-body">' + html + '</article>';
+  }
+}
+
+function switchTab(id) {
+  document.querySelectorAll('.tab').forEach(function(t) {
+    t.classList.toggle('active', t.dataset.id == id);
+  });
+  document.querySelectorAll('.tab-panel').forEach(function(p) {
+    p.classList.toggle('active', p.id === 'panel-' + id);
+  });
+  activeTabId = id;
+
+  var tab = document.querySelector('.tab[data-id="' + id + '"]');
+  if (tab) {
+    var title = tab.querySelector('.tab-title').textContent;
+    updateTitle(title);
+  }
+}
+
+function closeTab(id) {
+  var tab = document.querySelector('.tab[data-id="' + id + '"]');
+  var panel = document.getElementById('panel-' + id);
+
+  if (activeTabId == id) {
+    var tabs = Array.from(document.querySelectorAll('.tab'));
+    var idx = tabs.indexOf(tab);
+    var next = tabs[idx + 1] || tabs[idx - 1];
+    if (next) { switchTab(parseInt(next.dataset.id)); }
+  }
+
+  if (tab) tab.remove();
+  if (panel) panel.remove();
+
+  if (document.querySelectorAll('.tab').length === 0) {
+    closeViewer();
+  }
+}
+
+/* Zoom */
+var zoomLevel = 180;
+var ZOOM_STEP = 10;
+var ZOOM_MIN = 50;
+var ZOOM_MAX = 300;
+
+function applyZoom() {
+  document.getElementById('tabPanels').style.zoom = (zoomLevel / 100);
+  document.getElementById('zoomLabel').textContent = zoomLevel + '%';
+}
+function zoomIn()  { if (zoomLevel < ZOOM_MAX) { zoomLevel += ZOOM_STEP; applyZoom(); } }
+function zoomOut() { if (zoomLevel > ZOOM_MIN) { zoomLevel -= ZOOM_STEP; applyZoom(); } }
+function zoomReset() { zoomLevel = 180; applyZoom(); }
+
+/* Theme */
+function setTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('themeBtn').innerHTML = theme === 'dark' ? '&#x2600;' : '&#x263e;';
+  try { localStorage.setItem('md-viewer-theme', theme); } catch(e) {}
+}
+function toggleTheme() {
+  var current = document.documentElement.getAttribute('data-theme') || 'dark';
+  setTheme(current === 'dark' ? 'light' : 'dark');
+}
+// Apply default theme (dark), override with saved preference if available
+(function() {
+  var theme = 'dark';
+  try { var saved = localStorage.getItem('md-viewer-theme'); if (saved) theme = saved; } catch(e) {}
+  setTheme(theme);
+  applyZoom();
+})();
+
+/* Keyboard shortcuts */
+document.addEventListener('keydown', function(e) {
+  if (e.ctrlKey && (e.key === '=' || e.key === '+')) { e.preventDefault(); zoomIn(); }
+  else if (e.ctrlKey && e.key === '-') { e.preventDefault(); zoomOut(); }
+  else if (e.ctrlKey && e.key === '0') { e.preventDefault(); zoomReset(); }
+  else if (e.ctrlKey && e.shiftKey && e.key === 'L') { e.preventDefault(); toggleTheme(); }
+});
+
+/* INITIAL_TAB */
+</script>
+</body>
+</html>
