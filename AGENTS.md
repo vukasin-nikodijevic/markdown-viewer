@@ -1,7 +1,5 @@
 # AGENTS.md
 
-adsfa
-
 ## Project Overview
 
 `md-viewer` — A Go CLI tool that renders Markdown files in a native webview window using GitHub Flavored Markdown styling.
