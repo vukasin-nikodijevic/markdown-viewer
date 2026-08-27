@@ -21,20 +21,23 @@ A lightweight CLI tool that previews Markdown files in a native webview window w
 sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev
 ```
 
-## Build
+## Build & Install
 
 ```bash
 make
+sudo make install        # installs to /usr/local/bin
+# or
+PREFIX=~/.local make install  # user-local install
 ```
 
 ## Usage
 
 ```bash
 # Open a file (starts viewer in background)
-./md-viewer README.md
+md-viewer README.md
 
 # Open another file as a new tab in the existing viewer
-./md-viewer AGENTS.md
+md-viewer AGENTS.md
 ```
 
 ## Keyboard Shortcuts
