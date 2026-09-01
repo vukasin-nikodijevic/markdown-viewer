@@ -224,6 +224,59 @@ body {
 
 .markdown-body img { max-width: 100%; border-radius: 6px; }
 .markdown-body del { color: var(--color-fg-muted); }
+
+/* Search bar */
+.search-bar {
+  display: none;
+  position: fixed;
+  top: 46px;
+  right: 16px;
+  z-index: 200;
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  gap: 6px;
+  align-items: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+.search-bar.visible { display: flex; }
+.search-bar input {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-fg);
+  font-size: 13px;
+  padding: 4px 8px;
+  width: 220px;
+  outline: none;
+  font-family: inherit;
+}
+.search-bar input:focus { border-color: var(--color-link); }
+.search-bar .search-count {
+  font-size: 12px;
+  color: var(--color-fg-muted);
+  min-width: 50px;
+  text-align: center;
+  user-select: none;
+}
+.search-bar button {
+  background: none;
+  border: none;
+  color: var(--color-fg-muted);
+  cursor: pointer;
+  font-size: 14px;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.search-bar button:hover { background: var(--color-tab-hover); color: var(--color-fg); }
+
+mark.search-highlight { background: rgba(255, 200, 0, 0.4); color: inherit; border-radius: 2px; }
+mark.search-highlight.current { background: rgba(255, 140, 0, 0.7); }
 </style>
 </head>
 <body>
@@ -235,6 +288,13 @@ body {
     <button onclick="zoomReset()" title="Reset zoom (Ctrl+0)">&#x21ba;</button>
     <button onclick="toggleTheme()" id="themeBtn" title="Toggle theme (Ctrl+Shift+L)">&#x263e;</button>
   </div>
+</div>
+<div class="search-bar" id="searchBar">
+  <input type="text" id="searchInput" placeholder="Search…" autocomplete="off" spellcheck="false">
+  <span class="search-count" id="searchCount"></span>
+  <button onclick="searchPrev()" title="Previous (Shift+F3)">▲</button>
+  <button onclick="searchNext()" title="Next (F3)">▼</button>
+  <button onclick="closeSearch()" title="Close (Esc)">×</button>
 </div>
 <div id="tabPanels"></div>
 <script>
@@ -249,6 +309,7 @@ function addTab(id, title, html) {
   tab.className = 'tab';
   tab.dataset.id = id;
   tab.onclick = function() { switchTab(id); };
+  tab.onauxclick = function(e) { if (e.button === 1) { e.preventDefault(); closeTab(id); } };
 
   const titleSpan = document.createElement('span');
   titleSpan.className = 'tab-title';
@@ -293,6 +354,15 @@ function switchTab(id) {
     var title = tab.querySelector('.tab-title').textContent;
     updateTitle(title);
   }
+}
+
+function switchTabByOffset(offset) {
+  var tabs = Array.from(document.querySelectorAll('.tab'));
+  if (tabs.length <= 1) return;
+  var idx = tabs.findIndex(function(t) { return t.dataset.id == activeTabId; });
+  if (idx === -1) return;
+  var next = (idx + offset + tabs.length) % tabs.length;
+  switchTab(parseInt(tabs[next].dataset.id));
 }
 
 function closeTab(id) {
@@ -346,8 +416,143 @@ function toggleTheme() {
   applyZoom();
 })();
 
+/* Search */
+var searchMatches = [];
+var searchCurrentIdx = -1;
+
+function openSearch() {
+  var bar = document.getElementById('searchBar');
+  bar.classList.add('visible');
+  var input = document.getElementById('searchInput');
+  input.focus();
+  input.select();
+}
+
+function closeSearch() {
+  document.getElementById('searchBar').classList.remove('visible');
+  clearHighlights();
+  searchMatches = [];
+  searchCurrentIdx = -1;
+  document.getElementById('searchCount').textContent = '';
+  document.getElementById('searchInput').value = '';
+}
+
+function clearHighlights() {
+  var panel = activeTabId != null ? document.getElementById('panel-' + activeTabId) : null;
+  if (!panel) return;
+  var marks = panel.querySelectorAll('mark.search-highlight');
+  marks.forEach(function(m) {
+    var parent = m.parentNode;
+    parent.replaceChild(document.createTextNode(m.textContent), m);
+    parent.normalize();
+  });
+}
+
+function performSearch(query) {
+  clearHighlights();
+  searchMatches = [];
+  searchCurrentIdx = -1;
+  var countEl = document.getElementById('searchCount');
+
+  if (!query) { countEl.textContent = ''; return; }
+
+  var panel = activeTabId != null ? document.getElementById('panel-' + activeTabId) : null;
+  if (!panel) return;
+
+  var treeWalker = document.createTreeWalker(panel, NodeFilter.SHOW_TEXT, null);
+  var textNodes = [];
+  while (treeWalker.nextNode()) textNodes.push(treeWalker.currentNode);
+
+  var queryLower = query.toLowerCase();
+  textNodes.forEach(function(node) {
+    var text = node.textContent;
+    var lower = text.toLowerCase();
+    var idx = 0;
+    var parts = [];
+    var lastEnd = 0;
+    while ((idx = lower.indexOf(queryLower, idx)) !== -1) {
+      if (idx > lastEnd) parts.push({ text: text.substring(lastEnd, idx), match: false });
+      parts.push({ text: text.substring(idx, idx + query.length), match: true });
+      lastEnd = idx + query.length;
+      idx = lastEnd;
+    }
+    if (parts.length === 0) return;
+    if (lastEnd < text.length) parts.push({ text: text.substring(lastEnd), match: false });
+
+    var frag = document.createDocumentFragment();
+    parts.forEach(function(p) {
+      if (p.match) {
+        var mark = document.createElement('mark');
+        mark.className = 'search-highlight';
+        mark.textContent = p.text;
+        frag.appendChild(mark);
+        searchMatches.push(mark);
+      } else {
+        frag.appendChild(document.createTextNode(p.text));
+      }
+    });
+    node.parentNode.replaceChild(frag, node);
+  });
+
+  if (searchMatches.length > 0) {
+    searchCurrentIdx = 0;
+    searchMatches[0].classList.add('current');
+    searchMatches[0].scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+  countEl.textContent = searchMatches.length > 0 ? '1/' + searchMatches.length : 'No results';
+}
+
+function searchNext() {
+  if (searchMatches.length === 0) return;
+  searchMatches[searchCurrentIdx].classList.remove('current');
+  searchCurrentIdx = (searchCurrentIdx + 1) % searchMatches.length;
+  searchMatches[searchCurrentIdx].classList.add('current');
+  searchMatches[searchCurrentIdx].scrollIntoView({ block: 'center', behavior: 'smooth' });
+  document.getElementById('searchCount').textContent = (searchCurrentIdx + 1) + '/' + searchMatches.length;
+}
+
+function searchPrev() {
+  if (searchMatches.length === 0) return;
+  searchMatches[searchCurrentIdx].classList.remove('current');
+  searchCurrentIdx = (searchCurrentIdx - 1 + searchMatches.length) % searchMatches.length;
+  searchMatches[searchCurrentIdx].classList.add('current');
+  searchMatches[searchCurrentIdx].scrollIntoView({ block: 'center', behavior: 'smooth' });
+  document.getElementById('searchCount').textContent = (searchCurrentIdx + 1) + '/' + searchMatches.length;
+}
+
+document.getElementById('searchInput').addEventListener('input', function() {
+  performSearch(this.value);
+});
+
 /* Keyboard shortcuts */
 document.addEventListener('keydown', function(e) {
+  var searchVisible = document.getElementById('searchBar').classList.contains('visible');
+
+  if (e.key === '/' && !searchVisible && !e.ctrlKey && !e.altKey && !e.metaKey) {
+    e.preventDefault();
+    openSearch();
+    return;
+  }
+  if (e.key === 'Escape' && searchVisible) {
+    e.preventDefault();
+    closeSearch();
+    return;
+  }
+  if (e.key === 'F3' && searchVisible) {
+    e.preventDefault();
+    if (e.shiftKey) searchPrev(); else searchNext();
+    return;
+  }
+
+  if (e.ctrlKey && e.key === 'Tab') {
+    e.preventDefault();
+    switchTabByOffset(e.shiftKey ? -1 : 1);
+    return;
+  }
+  if (e.ctrlKey && e.key === 'PageDown') { e.preventDefault(); switchTabByOffset(1); return; }
+  if (e.ctrlKey && e.key === 'PageUp') { e.preventDefault(); switchTabByOffset(-1); return; }
+  if (e.ctrlKey && e.key === 'w') { e.preventDefault(); if (activeTabId != null) closeTab(activeTabId); return; }
+
   if (e.ctrlKey && (e.key === '=' || e.key === '+')) { e.preventDefault(); zoomIn(); }
   else if (e.ctrlKey && e.key === '-') { e.preventDefault(); zoomOut(); }
   else if (e.ctrlKey && e.key === '0') { e.preventDefault(); zoomReset(); }
