@@ -10,6 +10,8 @@ A lightweight CLI tool that previews Markdown files in a native webview window w
 - **Live reload** — file changes are re-rendered automatically on save
 - **Dark / Light theme** — dark by default, toggle with toolbar button or `Ctrl+Shift+L`
 - **Zoom** — 180% default, adjust with `Ctrl+` / `Ctrl-` / `Ctrl+0`
+- **In-tab search** — press `/` to search, `F3`/`Shift+F3` to navigate matches
+- **Tab management** — switch tabs with `Ctrl+Tab`/`Ctrl+PgDown`, close with `Ctrl+W` or middle-click
 - Background process — CLI returns immediately, process exits when window closes
 
 ## Requirements
@@ -42,9 +44,19 @@ md-viewer AGENTS.md
 
 ## Keyboard Shortcuts
 
-| Shortcut         | Action        |
-| ---------------- | ------------- |
-| `Ctrl+=`         | Zoom in       |
-| `Ctrl+-`         | Zoom out      |
-| `Ctrl+0`         | Reset zoom    |
-| `Ctrl+Shift+L`   | Toggle theme  |
+| Shortcut           | Action             |
+| ------------------ | ------------------ |
+| `Ctrl+=`           | Zoom in            |
+| `Ctrl+-`           | Zoom out           |
+| `Ctrl+0`           | Reset zoom         |
+| `Ctrl+Shift+L`     | Toggle theme       |
+| `/`                | Open search        |
+| `Esc`              | Close search       |
+| `F3`               | Next match         |
+| `Shift+F3`         | Previous match     |
+| `Ctrl+Tab`         | Next tab           |
+| `Ctrl+PgDown`      | Next tab           |
+| `Ctrl+Shift+Tab`   | Previous tab       |
+| `Ctrl+PgUp`        | Previous tab       |
+| `Ctrl+W`           | Close tab          |
+| Middle-click tab   | Close tab          |
