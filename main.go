@@ -53,38 +53,49 @@ func renderMarkdown(path string) (string, error) {
 	return buf.String(), nil
 }
 
-// trySendToExisting connects to a running viewer and sends the file path.
-func trySendToExisting(sockPath, absPath string) bool {
+// trySendToExisting connects to a running viewer and sends file paths
+// (one per line on a single connection).
+func trySendToExisting(sockPath string, paths []string) bool {
 	conn, err := net.Dial("unix", sockPath)
 	if err != nil {
 		return false
 	}
 	defer conn.Close()
-	_, err = fmt.Fprintln(conn, absPath)
-	return err == nil
+	for _, p := range paths {
+		if _, err := fmt.Fprintln(conn, p); err != nil {
+			return false
+		}
+	}
+	return true
 }
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintf(os.Stderr, "Usage: md-viewer <file.md>\n")
+		fmt.Fprintf(os.Stderr, "Usage: md-viewer <file.md> [file.md ...]\n")
 		os.Exit(1)
 	}
 
-	absPath, err := filepath.Abs(os.Args[1])
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
-	if _, err := os.Stat(absPath); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+	absPaths := make([]string, 0, len(os.Args)-1)
+	for _, arg := range os.Args[1:] {
+		absPath, err := filepath.Abs(arg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		if _, err := os.Stat(absPath); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		absPaths = append(absPaths, absPath)
 	}
 
 	sockPath := socketPath()
 
 	if os.Getenv(envDetached) != "1" {
-		if trySendToExisting(sockPath, absPath) {
-			fmt.Printf("Opened %s in existing viewer\n", filepath.Base(absPath))
+		if trySendToExisting(sockPath, absPaths) {
+			for _, p := range absPaths {
+				fmt.Printf("Opened %s in existing viewer\n", filepath.Base(p))
+			}
 			return
 		}
 
@@ -101,7 +112,7 @@ func main() {
 		}
 		defer devNull.Close()
 
-		cmd := exec.Command(exe, absPath)
+		cmd := exec.Command(exe, absPaths...)
 		cmd.Env = append(os.Environ(), envDetached+"=1")
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 		cmd.Stdin = nil
@@ -113,7 +124,9 @@ func main() {
 			os.Exit(1)
 		}
 
-		fmt.Printf("Previewing %s (pid: %d)\n", filepath.Base(absPath), cmd.Process.Pid)
+		for _, p := range absPaths {
+			fmt.Printf("Previewing %s (pid: %d)\n", filepath.Base(p), cmd.Process.Pid)
+		}
 		return
 	}
 
@@ -206,21 +219,34 @@ func main() {
 		}
 	}()
 
-	// Inject initial tab into the template before loading
-	body, err := renderMarkdown(absPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error rendering markdown: %v\n", err)
-		os.Exit(1)
+	// Inject initial tabs into the template before loading
+	var initTabs strings.Builder
+	initTabs.WriteString("initTabs([")
+	for i, p := range absPaths {
+		if i > 0 {
+			initTabs.WriteString(",")
+		}
+		body, err := renderMarkdown(p)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error rendering markdown: %v\n", err)
+			os.Exit(1)
+		}
+		titleJSON, _ := json.Marshal(filepath.Base(p))
+		htmlJSON, _ := json.Marshal(body)
+		initTabs.WriteString(fmt.Sprintf("[%d,%s,%s]", i+1, titleJSON, htmlJSON))
 	}
-	titleJSON, _ := json.Marshal(filepath.Base(absPath))
-	htmlJSON, _ := json.Marshal(body)
-	initScript := fmt.Sprintf("addTab(1, %s, %s);", titleJSON, htmlJSON)
-	tabID.Store(1)
+	initTabs.WriteString("]);")
+
+	tabID.Store(int64(len(absPaths)))
 	mu.Lock()
-	fileToTabs[absPath] = []int64{1}
+	for i, p := range absPaths {
+		fileToTabs[p] = append(fileToTabs[p], int64(i+1))
+	}
 	mu.Unlock()
-	watcher.Add(absPath)
-	page := strings.Replace(templateHTML, "/* INITIAL_TAB */", initScript, 1)
+	for _, p := range absPaths {
+		watcher.Add(p)
+	}
+	page := strings.Replace(templateHTML, "/* INITIAL_TAB */", initTabs.String(), 1)
 	w.SetHtml(page)
 
 	// Accept new files from other invocations
@@ -231,7 +257,7 @@ func main() {
 				return
 			}
 			scanner := bufio.NewScanner(conn)
-			if scanner.Scan() {
+			for scanner.Scan() {
 				addTabForFile(scanner.Text())
 			}
 			conn.Close()

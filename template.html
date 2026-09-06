@@ -43,9 +43,9 @@ body {
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
   margin-left: auto;
-  padding: 0 6px;
+  padding: 0 8px;
   flex-shrink: 0;
 }
 .toolbar button {
@@ -53,19 +53,19 @@ body {
   border: none;
   color: var(--color-fg-muted);
   cursor: pointer;
-  font-size: 15px;
-  width: 28px;
-  height: 28px;
-  border-radius: 4px;
+  font-size: 19.5px;
+  width: 36px;
+  height: 36px;
+  border-radius: 5px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 .toolbar button:hover { background: var(--color-tab-hover); color: var(--color-fg); }
 .toolbar .zoom-label {
-  font-size: 11px;
+  font-size: 14px;
   color: var(--color-fg-muted);
-  min-width: 32px;
+  min-width: 42px;
   text-align: center;
   user-select: none;
 }
@@ -79,7 +79,7 @@ body {
   position: sticky;
   top: 0;
   z-index: 100;
-  min-height: 38px;
+  min-height: 50px;
 }
 .tab-bar::-webkit-scrollbar { height: 2px; }
 .tab-bar::-webkit-scrollbar-thumb { background: var(--color-border); }
@@ -87,9 +87,9 @@ body {
 .tab {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  font-size: 13px;
+  gap: 8px;
+  padding: 10px 16px;
+  font-size: 17px;
   color: var(--color-fg-muted);
   cursor: pointer;
   border-right: 1px solid var(--color-border);
@@ -109,10 +109,10 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 3px;
-  font-size: 14px;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  font-size: 18px;
   line-height: 1;
   opacity: 0;
   transition: opacity 0.1s;
@@ -229,7 +229,7 @@ body {
 .search-bar {
   display: none;
   position: fixed;
-  top: 46px;
+  top: 58px;
   right: 16px;
   z-index: 200;
   background: var(--color-bg-subtle);
@@ -558,6 +558,11 @@ document.addEventListener('keydown', function(e) {
   else if (e.ctrlKey && e.key === '0') { e.preventDefault(); zoomReset(); }
   else if (e.ctrlKey && e.shiftKey && e.key === 'L') { e.preventDefault(); toggleTheme(); }
 });
+
+/* Multiple initial tabs (injected before page load) */
+function initTabs(tabs) {
+  tabs.forEach(function(t) { addTab(t[0], t[1], t[2]); });
+}
 
 /* INITIAL_TAB */
 </script>

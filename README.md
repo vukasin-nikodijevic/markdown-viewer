@@ -6,7 +6,7 @@ A lightweight CLI tool that previews Markdown files in a native webview window w
 
 - GitHub Flavored Markdown (tables, task lists, strikethrough, autolinks)
 - Native webview window (GTK/WebKit on Linux)
-- **Tabbed interface** — open multiple files in one window via repeated invocations
+- **Tabbed interface** — open multiple files in one window: pass several files at once, or invoke repeatedly
 - **Live reload** — file changes are re-rendered automatically on save
 - **Dark / Light theme** — dark by default, toggle with toolbar button or `Ctrl+Shift+L`
 - **Zoom** — 180% default, adjust with `Ctrl+` / `Ctrl-` / `Ctrl+0`
@@ -38,8 +38,11 @@ PREFIX=~/.local make install  # user-local install
 # Open a file (starts viewer in background)
 md-viewer README.md
 
+# Open several files at once — each becomes its own tab
+md-viewer README.md AGENTS.md go.mod
+
 # Open another file as a new tab in the existing viewer
-md-viewer AGENTS.md
+md-viewer Makefile
 ```
 
 ## Keyboard Shortcuts
