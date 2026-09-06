@@ -138,6 +138,7 @@ body {
   margin-bottom: 16px;
   font-weight: 600;
   line-height: 1.25;
+  scroll-margin-top: 56px;
 }
 .markdown-body h1 { font-size: 2em; padding-bottom: 0.3em; border-bottom: 1px solid var(--color-border); }
 .markdown-body h2 { font-size: 1.5em; padding-bottom: 0.3em; border-bottom: 1px solid var(--color-border); }
@@ -275,6 +276,85 @@ body {
 }
 .search-bar button:hover { background: var(--color-tab-hover); color: var(--color-fg); }
 
+/* Quick index popup (Ctrl+Shift+A) */
+.quick-index {
+  display: none;
+  position: fixed;
+  top: 10vh;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 560px;
+  max-width: 90vw;
+  max-height: 60vh;
+  z-index: 300;
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  flex-direction: column;
+  overflow: hidden;
+}
+.quick-index.visible { display: flex; }
+.quick-index input {
+  background: var(--color-bg);
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-fg);
+  font-size: 15px;
+  padding: 10px 12px;
+  outline: none;
+  font-family: inherit;
+}
+.qi-list { overflow-y: auto; flex: 1; }
+.qi-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  font-size: 14px;
+  color: var(--color-fg);
+  cursor: pointer;
+  user-select: none;
+}
+.qi-item .qi-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.qi-item .qi-badge {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--color-fg-muted);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.qi-item.selected { background: var(--color-tab-hover); }
+.qi-empty {
+  padding: 12px;
+  font-size: 13px;
+  color: var(--color-fg-muted);
+  text-align: center;
+}
+.qi-footer {
+  border-top: 1px solid var(--color-border);
+  padding: 5px 10px;
+  font-size: 11px;
+  color: var(--color-fg-muted);
+  user-select: none;
+}
+@keyframes qi-flash {
+  0% { background-color: rgba(255, 200, 0, 0.35); }
+  100% { background-color: transparent; }
+}
+.qi-flash { animation: qi-flash 1.2s ease-out 1; }
+
 mark.search-highlight { background: rgba(255, 200, 0, 0.4); color: inherit; border-radius: 2px; }
 mark.search-highlight.current { background: rgba(255, 140, 0, 0.7); }
 </style>
@@ -295,6 +375,11 @@ mark.search-highlight.current { background: rgba(255, 140, 0, 0.7); }
   <button onclick="searchPrev()" title="Previous (Shift+F3)">▲</button>
   <button onclick="searchNext()" title="Next (F3)">▼</button>
   <button onclick="closeSearch()" title="Close (Esc)">×</button>
+</div>
+<div class="quick-index" id="quickIndex">
+  <input type="text" id="quickIndexInput" placeholder="Search index — tabs & headings…" autocomplete="off" spellcheck="false">
+  <div class="qi-list" id="quickIndexList"></div>
+  <div class="qi-footer">&uarr;/&darr; navigate &middot; Enter open &middot; Esc close</div>
 </div>
 <div id="tabPanels"></div>
 <script>
@@ -524,6 +609,171 @@ document.getElementById('searchInput').addEventListener('input', function() {
   performSearch(this.value);
 });
 
+/* Quick index (Ctrl+Shift+A): live search over tabs & headings */
+var qiItems = [];
+var qiFiltered = [];
+var qiSelected = 0;
+var qiVisible = false;
+
+function ensureHeadingIds() {
+  var panels = document.querySelectorAll('.tab-panel');
+  for (var p = 0; p < panels.length; p++) {
+    var heads = panels[p].querySelectorAll('.markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4, .markdown-body h5, .markdown-body h6');
+    for (var i = 0; i < heads.length; i++) {
+      if (!heads[i].id) heads[i].id = 'qi-h-' + p + '-' + i;
+    }
+  }
+}
+
+function buildIndex() {
+  qiItems = [];
+  var tabs = document.querySelectorAll('#tabBar .tab');
+  for (var i = 0; i < tabs.length; i++) {
+    var id = parseInt(tabs[i].dataset.id);
+    qiItems.push({ tabId: id, tab: tabs[i].querySelector('.tab-title').textContent, text: '', headingId: null });
+    var panel = document.getElementById('panel-' + id);
+    if (panel) {
+      var heads = panel.querySelectorAll('.markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4, .markdown-body h5, .markdown-body h6');
+      for (var j = 0; j < heads.length; j++) {
+        qiItems.push({ tabId: id, tab: tabs[i].querySelector('.tab-title').textContent, text: heads[j].textContent, headingId: heads[j].id || null });
+      }
+    }
+  }
+}
+
+function renderQuickIndex() {
+  var q = document.getElementById('quickIndexInput').value;
+  var list = document.getElementById('quickIndexList');
+  list.innerHTML = '';
+  if (!q) {
+    qiSelected = 0;
+    var none = document.createElement('div');
+    none.className = 'qi-empty';
+    none.textContent = 'Type to search ' + qiItems.length + ' entries across all tabs…';
+    list.appendChild(none);
+    return;
+  }
+  var tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
+  qiFiltered = [];
+  for (var i = 0; i < qiItems.length; i++) {
+    var item = qiItems[i];
+    var score = 0, all = true;
+    var haystack = item.text || item.tab;
+    for (var t = 0; t < tokens.length; t++) {
+      var idx = haystack.toLowerCase().indexOf(tokens[t]);
+      if (idx !== -1) score += 40 - Math.min(idx, 39) + (idx === 0 ? 8 : 0);
+      if (item.tab.toLowerCase().indexOf(tokens[t]) !== -1) score += 18;
+      if (idx === -1) all = false;
+    }
+    if (all && score > 0) qiFiltered.push({ item: item, score: score });
+  }
+  qiFiltered.sort(function(a, b) { return b.score - a.score; });
+  if (qiSelected >= qiFiltered.length) qiSelected = 0;
+  var max = Math.min(qiFiltered.length, 200);
+  for (var r = 0; r < max; r++) {
+    (function(item, row) {
+      var el = document.createElement('div');
+      el.className = 'qi-item';
+      if (row === qiSelected) el.classList.add('selected');
+
+      var txt = document.createElement('span');
+      txt.className = 'qi-text';
+      if (item.text) txt.textContent = item.text;
+      else txt.textContent = 'Open tab: ' + item.tab;
+
+      var badge = document.createElement('span');
+      badge.className = 'qi-badge';
+      badge.textContent = item.tab;
+      el.appendChild(txt);
+      el.appendChild(badge);
+
+      el.onclick = function() { selectQuickIndexItem(item); };
+      el.onmouseenter = function() { qiSelected = row; refreshQuickSelection(); };
+      list.appendChild(el);
+    })(qiFiltered[r].item, r);
+  }
+  if (qiFiltered.length === 0) {
+    var empty = document.createElement('div');
+    empty.className = 'qi-empty';
+    empty.textContent = 'No matches';
+    list.appendChild(empty);
+  }
+}
+
+function refreshQuickSelection() {
+  var items = document.querySelectorAll('#quickIndexList .qi-item');
+  items.forEach(function(el, i) {
+    el.classList.toggle('selected', i === qiSelected);
+    if (i === qiSelected) el.scrollIntoView({ block: 'nearest' });
+  });
+}
+
+function selectQuickIndexItem(item) {
+  switchTab(item.tabId);
+  if (item.headingId) {
+    var headingId = item.headingId;
+    setTimeout(function() {
+      // Scope to the target panel: goldmark generates the same id for
+      // same-named headings in different files.
+      var h = document.querySelector('#panel-' + item.tabId + ' #' + headingId) ||
+              document.getElementById(headingId);
+      if (h) {
+        h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        h.classList.remove('qi-flash');
+        void h.offsetWidth;
+        h.classList.add('qi-flash');
+      }
+    }, 60);
+  }
+  closeQuickIndex();
+}
+
+function openQuickIndex() {
+  if (document.getElementById('searchBar').classList.contains('visible')) closeSearch();
+  ensureHeadingIds();
+  buildIndex();
+  qiSelected = 0;
+  qiVisible = true;
+  document.getElementById('quickIndex').classList.add('visible');
+  var input = document.getElementById('quickIndexInput');
+  input.value = '';
+  input.focus();
+  renderQuickIndex();
+}
+
+function closeQuickIndex() {
+  qiVisible = false;
+  document.getElementById('quickIndex').classList.remove('visible');
+}
+
+document.getElementById('quickIndexInput').addEventListener('input', function() {
+  qiSelected = 0;
+  renderQuickIndex();
+});
+
+document.getElementById('quickIndexInput').addEventListener('keydown', function(e) {
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    var items = document.querySelectorAll('#quickIndexList .qi-item');
+    if (items.length > 0) { qiSelected = Math.min(qiSelected + 1, items.length - 1); refreshQuickSelection(); }
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (qiSelected > 0) { qiSelected--; refreshQuickSelection(); }
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (qiFiltered.length > 0) selectQuickIndexItem(qiFiltered[Math.min(qiSelected, qiFiltered.length - 1)].item);
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    closeQuickIndex();
+  }
+  // Let Ctrl+Shift+A and Ctrl+F reach the global handler while typing
+  if (e.ctrlKey && !e.altKey && !e.metaKey) {
+    if (e.shiftKey && (e.key === 'A' || e.key === 'a')) return;
+    if (e.key === 'f' || e.key === 'F') return;
+  }
+  e.stopPropagation();
+});
+
 /* Keyboard shortcuts */
 document.addEventListener('keydown', function(e) {
   var searchVisible = document.getElementById('searchBar').classList.contains('visible');
@@ -541,6 +791,18 @@ document.addEventListener('keydown', function(e) {
   if (e.key === 'F3' && searchVisible) {
     e.preventDefault();
     if (e.shiftKey) searchPrev(); else searchNext();
+    return;
+  }
+
+  if (e.ctrlKey && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
+    e.preventDefault();
+    openQuickIndex();
+    return;
+  }
+  if (e.ctrlKey && (e.key === 'f' || e.key === 'F')) {
+    e.preventDefault();
+    if (qiVisible) closeQuickIndex();
+    openSearch();
     return;
   }
 

@@ -31,7 +31,8 @@ make
 - **Live reload:** `fsnotify` watches opened files; on write, re-renders markdown and pushes to webview via `updateTabContent()` JS call.
 - **Rendering pipeline:** Read .md file → goldmark GFM → HTML string → injected into webview via JS `addTab()`
 - **Theme/Zoom:** Dark theme default, 180% default zoom. CSS custom properties for theming. `localStorage` wrapped in try/catch (data URI origin restriction).
-- **In-tab search:** `/` opens search bar, `Esc` closes it, `F3`/`Shift+F3` navigate matches. Uses DOM TreeWalker to highlight text nodes with `<mark>` elements; highlights are cleared on close or new search.
+- **In-tab search:** `/` or `Ctrl+F` opens search bar, `Esc` closes it, `F3`/`Shift+F3` navigate matches. Uses DOM TreeWalker to highlight text nodes with `<mark>` elements; highlights are cleared on close or new search.
+- **Quick index:** `Ctrl+Shift+A` opens a popup with a live-filtering index of all tabs and their headings (rebuilt on open). Multi-token filter scored by heading match + tab name match; `↑`/`↓`/Enter or click switches to the item's tab and scrolls to the heading (headings without goldmark IDs get fallback IDs; `scroll-margin-top` keeps them below the tab bar).
 - **Tab management:** `Ctrl+Tab`/`Ctrl+PgDown` switch to next tab, `Ctrl+Shift+Tab`/`Ctrl+PgUp` to previous. `Ctrl+W` or middle-click closes a tab.
 
 ## Constraints

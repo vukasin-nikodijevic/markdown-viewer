@@ -10,7 +10,8 @@ A lightweight CLI tool that previews Markdown files in a native webview window w
 - **Live reload** — file changes are re-rendered automatically on save
 - **Dark / Light theme** — dark by default, toggle with toolbar button or `Ctrl+Shift+L`
 - **Zoom** — 180% default, adjust with `Ctrl+` / `Ctrl-` / `Ctrl+0`
-- **In-tab search** — press `/` to search, `F3`/`Shift+F3` to navigate matches
+- **In-tab search** — press `/` or `Ctrl+F` to search, `F3`/`Shift+F3` to navigate matches
+- **Quick index** — press `Ctrl+Shift+A` for a live index of all tabs & headings; type to filter, `Enter`/click to jump
 - **Tab management** — switch tabs with `Ctrl+Tab`/`Ctrl+PgDown`, close with `Ctrl+W` or middle-click
 - Background process — CLI returns immediately, process exits when window closes
 
@@ -54,7 +55,9 @@ md-viewer Makefile
 | `Ctrl+0`           | Reset zoom         |
 | `Ctrl+Shift+L`     | Toggle theme       |
 | `/`                | Open search        |
-| `Esc`              | Close search       |
+| `Ctrl+F`           | Open search        |
+| `Ctrl+Shift+A`     | Quick index (all tabs & headings) |
+| `Esc`              | Close search / index |
 | `F3`               | Next match         |
 | `Shift+F3`         | Previous match     |
 | `Ctrl+Tab`         | Next tab           |
