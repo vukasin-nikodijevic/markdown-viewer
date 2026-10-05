@@ -24,20 +24,23 @@ make
 
 ## Architecture
 
-- `main.go` — CLI, IPC (Unix socket), webview, file watching
+- `main.go` — CLI, IPC (Unix socket), loopback page server, webview
+- `watch.go` — `fileWatcher`: live-reload file watching (tests in `watch_test.go`)
 - `template.html` — embedded via `go:embed`; tab UI, GitHub markdown CSS, zoom/theme JS
 - **Single-process tabs:** First invocation starts the viewer; subsequent invocations send file paths via Unix socket (`$XDG_RUNTIME_DIR/md-viewer-UID.sock`). Each file opens as a tab.
 - **Detach pattern:** Parent process launches child with `MD_VIEWER_DETACHED=1` env var and `Setsid: true`, then exits. Child opens webview and runs until window closed.
-- **Live reload:** `fsnotify` watches opened files; on write, re-renders markdown and pushes to webview via `updateTabContent()` JS call.
-- **Rendering pipeline:** Read .md file → goldmark GFM → HTML string → injected into webview via JS `addTab()`
+- **Live reload:** `fileWatcher` (fsnotify: inotify on Linux, kqueue on macOS) watches each open file's *parent directory* and filters events to open files — a per-file watch is lost when an editor saves atomically (temp file + rename, or backup rename). Watches are ref-counted per tab and dropped when the last tab for a file/dir closes. Write/Create events are debounced (100 ms), then the file is re-rendered and pushed via `updateTabContent()`; an open search is re-applied.
+- **Page serving:** The page is served from a loopback HTTP server (`127.0.0.1:<random port>/<random token>/`, Host header checked) and loaded with `w.Navigate()`, not `SetHtml()` — a page loaded from an HTML string has no URL, so right-click → Reload produced a blank page on macOS. Go keeps the ordered list of open tabs (JS reports closes via the `tabClosed` binding); every page load re-renders them from disk. Active tab, zoom and scroll are saved to `sessionStorage` on `beforeunload` and restored after `initTabs()`.
+- **Rendering pipeline:** Read .md file → goldmark GFM → HTML string → injected into the page via `initTabs()` on load, or JS `addTab()` for tabs opened later
 - **Theme/Zoom:** Dark theme default, 180% default zoom. CSS custom properties for theming. `localStorage` wrapped in try/catch (data URI origin restriction).
 - **In-tab search:** `/` or `Ctrl+F` opens search bar, `Esc` closes it, `F3`/`Shift+F3` navigate matches. Uses DOM TreeWalker to highlight text nodes with `<mark>` elements; highlights are cleared on close or new search.
 - **Quick index:** `Ctrl+Shift+A` opens a popup with a live-filtering index of all tabs and their headings (rebuilt on open). Multi-token filter scored by heading match + tab name match; `↑`/`↓`/Enter or click switches to the item's tab and scrolls to the heading (headings without goldmark IDs get fallback IDs; `scroll-margin-top` keeps them below the tab bar).
+- **Help dialog:** `?` toolbar button or `Ctrl+?` toggles a modal listing all shortcuts (`Esc`/click outside closes). The shortcut list is static HTML in `template.html` — keep it in sync when adding shortcuts.
 - **Tab management:** `Ctrl+Tab`/`Ctrl+PgDown` switch to next tab, `Ctrl+Shift+Tab`/`Ctrl+PgUp` to previous. `Ctrl+W` or middle-click closes a tab.
 
 ## Constraints
 
-- `webview.SetHtml()` loads pages as data URIs — no `localStorage` origin, so all storage calls must be wrapped in try/catch.
+- Don't switch back to `webview.SetHtml()` — it breaks Reload. The page origin uses a random port per run, so `localStorage` doesn't persist across runs; keep all storage calls wrapped in try/catch.
 - Dependencies must be pinned to versions compatible with Go 1.22 (e.g. fsnotify v1.7.0, not v1.10+).
 
 ## Conventions

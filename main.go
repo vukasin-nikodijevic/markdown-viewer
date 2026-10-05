@@ -3,10 +3,15 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"crypto/rand"
 	_ "embed"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"html"
+	"io"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,7 +20,6 @@ import (
 	"sync/atomic"
 	"syscall"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
@@ -67,6 +71,59 @@ func trySendToExisting(sockPath string, paths []string) bool {
 		}
 	}
 	return true
+}
+
+type openTab struct {
+	id   int64
+	path string
+}
+
+// buildPage renders the template with the given tabs injected.
+func buildPage(tabs []openTab) string {
+	var init strings.Builder
+	init.WriteString("initTabs([")
+	for i, t := range tabs {
+		if i > 0 {
+			init.WriteString(",")
+		}
+		body, err := renderMarkdown(t.path)
+		if err != nil {
+			body = "<p><strong>Error:</strong> " + html.EscapeString(err.Error()) + "</p>"
+		}
+		titleJSON, _ := json.Marshal(filepath.Base(t.path))
+		htmlJSON, _ := json.Marshal(body)
+		fmt.Fprintf(&init, "[%d,%s,%s]", t.id, titleJSON, htmlJSON)
+	}
+	init.WriteString("]);")
+	return strings.Replace(templateHTML, "/* INITIAL_TAB */", init.String(), 1)
+}
+
+// servePage serves page() on a random loopback port behind a random token
+// and returns the URL to navigate to.
+func servePage(page func() string) (string, error) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return "", err
+	}
+	tokenBytes := make([]byte, 16)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		ln.Close()
+		return "", err
+	}
+	host := ln.Addr().String()
+	pagePath := "/" + hex.EncodeToString(tokenBytes) + "/"
+	handler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		// Host check guards against DNS rebinding from other web pages.
+		if r.Host != host || r.URL.Path != pagePath {
+			http.NotFound(rw, r)
+			return
+		}
+		rw.Header().Set("Content-Type", "text/html; charset=utf-8")
+		rw.Header().Set("Cache-Control", "no-store")
+		io.WriteString(rw, page())
+	})
+	go http.Serve(ln, handler)
+	return "http://" + host + pagePath, nil
 }
 
 func main() {
@@ -143,48 +200,28 @@ func main() {
 		os.Remove(sockPath)
 	}()
 
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error creating watcher: %v\n", err)
-		os.Exit(1)
-	}
-	defer watcher.Close()
-
 	w := webview.New(false)
 	defer w.Destroy()
 	w.SetTitle("MD Preview")
 	w.SetSize(960, 720, webview.HintNone)
 
 	var tabID atomic.Int64
-	// Track file path → tab IDs for live reload
+	// Open tabs in display order; the page is rebuilt from this on (re)load.
 	var mu sync.Mutex
-	fileToTabs := make(map[string][]int64)
-
-	addTabForFile := func(path string) {
-		body, err := renderMarkdown(path)
-		if err != nil {
-			return
-		}
-		id := tabID.Add(1)
-		title := filepath.Base(path)
-		titleJSON, _ := json.Marshal(title)
-		htmlJSON, _ := json.Marshal(body)
-		js := fmt.Sprintf("addTab(%d, %s, %s);", id, titleJSON, htmlJSON)
-		w.Dispatch(func() { w.Eval(js) })
-
-		mu.Lock()
-		fileToTabs[path] = append(fileToTabs[path], id)
-		mu.Unlock()
-		watcher.Add(path)
-	}
+	var tabs []openTab
 
 	reloadFile := func(path string) {
 		body, err := renderMarkdown(path)
 		if err != nil {
 			return
 		}
+		var ids []int64
 		mu.Lock()
-		ids := fileToTabs[path]
+		for _, t := range tabs {
+			if t.path == path {
+				ids = append(ids, t.id)
+			}
+		}
 		mu.Unlock()
 		htmlJSON, _ := json.Marshal(body)
 		for _, id := range ids {
@@ -193,61 +230,68 @@ func main() {
 		}
 	}
 
+	// Live reload: re-render a file's tabs whenever it is saved.
+	watcher, err := newFileWatcher(reloadFile)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating watcher: %v\n", err)
+		os.Exit(1)
+	}
+	defer watcher.Close()
+
+	addTabForFile := func(path string) {
+		body, err := renderMarkdown(path)
+		if err != nil {
+			return
+		}
+		id := tabID.Add(1)
+		mu.Lock()
+		tabs = append(tabs, openTab{id: id, path: path})
+		mu.Unlock()
+		watcher.Add(path)
+
+		titleJSON, _ := json.Marshal(filepath.Base(path))
+		htmlJSON, _ := json.Marshal(body)
+		js := fmt.Sprintf("addTab(%d, %s, %s);", id, titleJSON, htmlJSON)
+		w.Dispatch(func() { w.Eval(js) })
+	}
+
 	w.Bind("updateTitle", func(title string) {
 		w.Dispatch(func() { w.SetTitle("MD Preview — " + title) })
 	})
 	w.Bind("closeViewer", func() {
 		w.Dispatch(func() { w.Terminate() })
 	})
-
-	// Watch for file changes
-	go func() {
-		for {
-			select {
-			case event, ok := <-watcher.Events:
-				if !ok {
-					return
-				}
-				if event.Has(fsnotify.Write) || event.Has(fsnotify.Create) {
-					reloadFile(event.Name)
-				}
-			case _, ok := <-watcher.Errors:
-				if !ok {
-					return
-				}
+	w.Bind("tabClosed", func(id int64) {
+		mu.Lock()
+		defer mu.Unlock()
+		for i, t := range tabs {
+			if t.id == id {
+				tabs = append(tabs[:i], tabs[i+1:]...)
+				watcher.Remove(t.path)
+				return
 			}
 		}
-	}()
+	})
 
-	// Inject initial tabs into the template before loading
-	var initTabs strings.Builder
-	initTabs.WriteString("initTabs([")
-	for i, p := range absPaths {
-		if i > 0 {
-			initTabs.WriteString(",")
-		}
-		body, err := renderMarkdown(p)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error rendering markdown: %v\n", err)
-			os.Exit(1)
-		}
-		titleJSON, _ := json.Marshal(filepath.Base(p))
-		htmlJSON, _ := json.Marshal(body)
-		initTabs.WriteString(fmt.Sprintf("[%d,%s,%s]", i+1, titleJSON, htmlJSON))
-	}
-	initTabs.WriteString("]);")
-
-	tabID.Store(int64(len(absPaths)))
-	mu.Lock()
-	for i, p := range absPaths {
-		fileToTabs[p] = append(fileToTabs[p], int64(i+1))
-	}
-	mu.Unlock()
 	for _, p := range absPaths {
+		tabs = append(tabs, openTab{id: tabID.Add(1), path: p})
 		watcher.Add(p)
 	}
-	page := strings.Replace(templateHTML, "/* INITIAL_TAB */", initTabs.String(), 1)
-	w.SetHtml(page)
+
+	// Serve the page over loopback HTTP instead of SetHtml: a page loaded
+	// from an HTML string has no URL, so "Reload" shows a blank page (macOS).
+	// Each load re-renders the currently open tabs from disk.
+	pageURL, err := servePage(func() string {
+		mu.Lock()
+		snapshot := append([]openTab(nil), tabs...)
+		mu.Unlock()
+		return buildPage(snapshot)
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error starting page server: %v\n", err)
+		os.Exit(1)
+	}
+	w.Navigate(pageURL)
 
 	// Accept new files from other invocations
 	go func() {

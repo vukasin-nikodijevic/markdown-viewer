@@ -355,6 +355,71 @@ body {
 }
 .qi-flash { animation: qi-flash 1.2s ease-out 1; }
 
+/* Help dialog (? button / Ctrl+?) */
+.help-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  background: rgba(0,0,0,0.45);
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 8vh;
+}
+.help-overlay.visible { display: flex; }
+.help-dialog {
+  width: 520px;
+  max-width: 90vw;
+  max-height: 80vh;
+  overflow-y: auto;
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  padding: 16px 20px 20px;
+}
+.help-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.help-header h2 { font-size: 18px; font-weight: 600; }
+.help-header button {
+  background: none;
+  border: none;
+  color: var(--color-fg-muted);
+  cursor: pointer;
+  font-size: 20px;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+}
+.help-header button:hover { background: var(--color-tab-hover); color: var(--color-fg); }
+.help-dialog h3 {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-fg-muted);
+  margin: 14px 0 4px;
+}
+.help-dialog table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.help-dialog td { padding: 4px 0; vertical-align: top; }
+.help-dialog td:first-child { width: 45%; white-space: nowrap; padding-right: 12px; }
+.help-dialog kbd {
+  display: inline-block;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 1px 6px;
+  color: var(--color-fg);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+}
+
 mark.search-highlight { background: rgba(255, 200, 0, 0.4); color: inherit; border-radius: 2px; }
 mark.search-highlight.current { background: rgba(255, 140, 0, 0.7); }
 </style>
@@ -367,6 +432,7 @@ mark.search-highlight.current { background: rgba(255, 140, 0, 0.7); }
     <button onclick="zoomIn()" title="Zoom in (Ctrl++)">&#x2b;</button>
     <button onclick="zoomReset()" title="Reset zoom (Ctrl+0)">&#x21ba;</button>
     <button onclick="toggleTheme()" id="themeBtn" title="Toggle theme (Ctrl+Shift+L)">&#x263e;</button>
+    <button onclick="openHelp()" title="Keyboard shortcuts (Ctrl+?)">?</button>
   </div>
 </div>
 <div class="search-bar" id="searchBar">
@@ -381,11 +447,42 @@ mark.search-highlight.current { background: rgba(255, 140, 0, 0.7); }
   <div class="qi-list" id="quickIndexList"></div>
   <div class="qi-footer">&uarr;/&darr; navigate &middot; Enter open &middot; Esc close</div>
 </div>
+<div class="help-overlay" id="helpOverlay" onclick="if (event.target === this) closeHelp()">
+  <div class="help-dialog" role="dialog" aria-label="Keyboard shortcuts">
+    <div class="help-header">
+      <h2>Keyboard shortcuts</h2>
+      <button onclick="closeHelp()" title="Close (Esc)">&times;</button>
+    </div>
+    <h3>View</h3>
+    <table>
+      <tr><td><kbd>Ctrl</kbd> + <kbd>=</kbd></td><td>Zoom in</td></tr>
+      <tr><td><kbd>Ctrl</kbd> + <kbd>-</kbd></td><td>Zoom out</td></tr>
+      <tr><td><kbd>Ctrl</kbd> + <kbd>0</kbd></td><td>Reset zoom</td></tr>
+      <tr><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>L</kbd></td><td>Toggle theme</td></tr>
+      <tr><td><kbd>Ctrl</kbd> + <kbd>?</kbd></td><td>Show this help</td></tr>
+    </table>
+    <h3>Search</h3>
+    <table>
+      <tr><td><kbd>/</kbd> or <kbd>Ctrl</kbd> + <kbd>F</kbd></td><td>Search in tab</td></tr>
+      <tr><td><kbd>F3</kbd> / <kbd>Shift</kbd> + <kbd>F3</kbd></td><td>Next / previous match</td></tr>
+      <tr><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>A</kbd></td><td>Quick index (all tabs &amp; headings)</td></tr>
+      <tr><td><kbd>&uarr;</kbd> / <kbd>&darr;</kbd>, <kbd>Enter</kbd></td><td>Navigate / open index entry</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>Close search, index or help</td></tr>
+    </table>
+    <h3>Tabs</h3>
+    <table>
+      <tr><td><kbd>Ctrl</kbd> + <kbd>Tab</kbd> / <kbd>Ctrl</kbd> + <kbd>PgDn</kbd></td><td>Next tab</td></tr>
+      <tr><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Tab</kbd> / <kbd>Ctrl</kbd> + <kbd>PgUp</kbd></td><td>Previous tab</td></tr>
+      <tr><td><kbd>Ctrl</kbd> + <kbd>W</kbd> / middle-click</td><td>Close tab</td></tr>
+    </table>
+  </div>
+</div>
 <div id="tabPanels"></div>
 <script>
 let activeTabId = null;
 
 function addTab(id, title, html) {
+  if (document.getElementById('panel-' + id)) return;
   const bar = document.getElementById('tabBar');
   const panels = document.getElementById('tabPanels');
   const toolbar = document.querySelector('.toolbar');
@@ -422,6 +519,10 @@ function updateTabContent(id, html) {
   var panel = document.getElementById('panel-' + id);
   if (panel) {
     panel.innerHTML = '<article class="markdown-body">' + html + '</article>';
+    // Re-apply an open search to the fresh content
+    if (id == activeTabId && document.getElementById('searchBar').classList.contains('visible')) {
+      performSearch(document.getElementById('searchInput').value);
+    }
   }
 }
 
@@ -463,6 +564,7 @@ function closeTab(id) {
 
   if (tab) tab.remove();
   if (panel) panel.remove();
+  tabClosed(id);
 
   if (document.querySelectorAll('.tab').length === 0) {
     closeViewer();
@@ -770,12 +872,38 @@ document.getElementById('quickIndexInput').addEventListener('keydown', function(
   if (e.ctrlKey && !e.altKey && !e.metaKey) {
     if (e.shiftKey && (e.key === 'A' || e.key === 'a')) return;
     if (e.key === 'f' || e.key === 'F') return;
+    if (isHelpShortcut(e)) return;
   }
   e.stopPropagation();
 });
 
+/* Help dialog */
+function helpVisible() {
+  return document.getElementById('helpOverlay').classList.contains('visible');
+}
+function openHelp() {
+  if (qiVisible) closeQuickIndex();
+  document.getElementById('helpOverlay').classList.add('visible');
+}
+function closeHelp() {
+  document.getElementById('helpOverlay').classList.remove('visible');
+}
+// Ctrl+? (Shift+/ on most layouts; e.key is '?' wherever the key lives)
+function isHelpShortcut(e) {
+  return e.ctrlKey && !e.altKey && (e.key === '?' || (e.shiftKey && e.key === '/'));
+}
+
 /* Keyboard shortcuts */
 document.addEventListener('keydown', function(e) {
+  if (isHelpShortcut(e)) {
+    e.preventDefault();
+    if (helpVisible()) closeHelp(); else openHelp();
+    return;
+  }
+  if (helpVisible()) {
+    if (e.key === 'Escape') { e.preventDefault(); closeHelp(); }
+    return;
+  }
   var searchVisible = document.getElementById('searchBar').classList.contains('visible');
 
   if (e.key === '/' && !searchVisible && !e.ctrlKey && !e.altKey && !e.metaKey) {
@@ -824,7 +952,26 @@ document.addEventListener('keydown', function(e) {
 /* Multiple initial tabs (injected before page load) */
 function initTabs(tabs) {
   tabs.forEach(function(t) { addTab(t[0], t[1], t[2]); });
+  restoreViewState();
 }
+
+/* Keep active tab, zoom and scroll position across page reloads */
+var VIEW_STATE_KEY = 'md-viewer-view';
+function restoreViewState() {
+  var state = null;
+  try { state = JSON.parse(sessionStorage.getItem(VIEW_STATE_KEY)); } catch(e) {}
+  if (!state) return;
+  if (state.zoom) { zoomLevel = state.zoom; applyZoom(); }
+  if (state.tab != null && document.getElementById('panel-' + state.tab)) switchTab(state.tab);
+  if (state.scrollY) {
+    window.addEventListener('load', function() { window.scrollTo(0, state.scrollY); });
+  }
+}
+window.addEventListener('beforeunload', function() {
+  try {
+    sessionStorage.setItem(VIEW_STATE_KEY, JSON.stringify({ tab: activeTabId, zoom: zoomLevel, scrollY: window.scrollY }));
+  } catch(e) {}
+});
 
 /* INITIAL_TAB */
 </script>
