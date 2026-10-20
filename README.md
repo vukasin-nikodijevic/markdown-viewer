@@ -32,6 +32,18 @@ sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev
 brew install vukasin-nikodijevic/tap/md-viewer
 ```
 
+## Prebuilt binaries
+
+Each `v*` tag publishes a [GitHub release](https://github.com/vukasin-nikodijevic/markdown-viewer/releases) with builds for macOS (arm64, amd64) and Linux (amd64, arm64):
+
+```bash
+tar -xzf md-viewer_<version>_<os>_<arch>.tar.gz
+sudo install -m755 md-viewer_<version>_<os>_<arch>/md-viewer /usr/local/bin/
+```
+
+- Linux needs the runtime libraries: `sudo apt install libgtk-3-0 libwebkit2gtk-4.1-0`
+- macOS: the binary isn't notarized; if it was downloaded with a browser, clear the quarantine flag with `xattr -d com.apple.quarantine md-viewer`
+
 ## Build & Install
 
 ```bash

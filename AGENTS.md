@@ -39,6 +39,12 @@ make
 - **macOS menu:** `menu_darwin.go` (cgo/Cocoa) installs an app + Edit menu after `webview.New` — webview creates none, and Cocoa only dispatches Cmd+C/V/X/A/Z via menu key equivalents. Don't add menu items whose key equivalents clash with JS shortcuts (e.g. Cmd+F, Cmd+W). `Ctrl+C` is mapped to `execCommand('copy')` in JS on macOS.
 - **Tab management:** `Ctrl+Tab`/`Ctrl+PgDown` switch to next tab, `Ctrl+Shift+Tab`/`Ctrl+PgUp` to previous. `Ctrl+W` or middle-click closes a tab. `Ctrl/Cmd+O` calls the `openFileDialog` binding, which shows a native multi-select picker (`dialog_darwin.go` NSOpenPanel, `dialog_linux.go` GTK) starting in the active tab's folder and opens each file via `addTabForFile`.
 
+## CI / Releases
+
+- `.github/workflows/build.yml` runs `make` + `go test` on native runners (CGO, no cross-compiling): Linux amd64/arm64 on Ubuntu 22.04 (older glibc for compatibility), macOS arm64/amd64.
+- Pushing a `v*` tag also creates a GitHub release with `md-viewer_<version>_<os>_<arch>.tar.gz` archives and `checksums.txt`.
+- The Homebrew formula lives in `vukasin-nikodijevic/homebrew-tap` and builds from the tag's source tarball; bump its `url`/`sha256` after tagging.
+
 ## Constraints
 
 - Don't switch back to `webview.SetHtml()` — it breaks Reload. The page origin uses a random port per run, so `localStorage` doesn't persist across runs; keep all storage calls wrapped in try/catch.
