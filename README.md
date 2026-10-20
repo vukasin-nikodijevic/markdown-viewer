@@ -26,11 +26,13 @@ A lightweight CLI tool that previews Markdown files in a native webview window w
 sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev
 ```
 
-## Install (macOS, Homebrew)
+## Install (Homebrew, macOS and Linux)
 
 ```bash
 brew install vukasin-nikodijevic/tap/md-viewer
 ```
+
+Installs the prebuilt release binary. On Linux it uses the system GTK/WebKitGTK: `sudo apt install libgtk-3-0 libwebkit2gtk-4.1-0`.
 
 ## Prebuilt binaries
 

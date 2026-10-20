@@ -44,7 +44,7 @@ make
 - `.github/workflows/build.yml` runs `make` + `go test` on native runners (CGO, no cross-compiling): Linux amd64/arm64 on Ubuntu 22.04 (older glibc for compatibility), macOS arm64/amd64.
 - CI builds with current stable Go, not go.mod's 1.22: Go 1.22 + current Apple `ld` produces macOS binaries with an invalid code signature (SIGKILL on launch). A smoke-test step runs each binary (and `codesign --verify` on macOS arm64; Intel binaries are unsigned).
 - Pushing a `v*` tag also creates a GitHub release with `md-viewer_<version>_<os>_<arch>.tar.gz` archives and `checksums.txt`.
-- The Homebrew formula lives in `vukasin-nikodijevic/homebrew-tap` and builds from the tag's source tarball; bump its `url`/`sha256` after tagging.
+- The Homebrew formula (`vukasin-nikodijevic/homebrew-tap`) installs these release binaries, not a source build: on Linux a source build drags in Homebrew's entire webkitgtk stack. The release job renders `packaging/homebrew/md-viewer.rb.in` with `render-formula.sh` and pushes it to the tap (secret `TAP_GITHUB_TOKEN`) — edit the template here, not the tap copy.
 
 ## Constraints
 
