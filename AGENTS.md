@@ -42,7 +42,7 @@ make
 ## CI / Releases
 
 - `.github/workflows/build.yml` runs `make` + `go test` on native runners (CGO, no cross-compiling): Linux amd64/arm64 on Ubuntu 22.04 (older glibc for compatibility), macOS arm64/amd64.
-- CI builds with current stable Go, not go.mod's 1.22: Go 1.22 + current Apple `ld` produces macOS binaries with an invalid code signature (SIGKILL on launch). A smoke-test step runs each binary (and `codesign --verify` on macOS).
+- CI builds with current stable Go, not go.mod's 1.22: Go 1.22 + current Apple `ld` produces macOS binaries with an invalid code signature (SIGKILL on launch). A smoke-test step runs each binary (and `codesign --verify` on macOS arm64; Intel binaries are unsigned).
 - Pushing a `v*` tag also creates a GitHub release with `md-viewer_<version>_<os>_<arch>.tar.gz` archives and `checksums.txt`.
 - The Homebrew formula lives in `vukasin-nikodijevic/homebrew-tap` and builds from the tag's source tarball; bump its `url`/`sha256` after tagging.
 

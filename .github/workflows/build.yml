@@ -45,7 +45,8 @@ jobs:
 
       - name: Smoke test binary
         run: |
-          if [[ "${{ matrix.os }}" == darwin ]]; then codesign --verify md-viewer; fi
+          # Apple Silicon requires a valid signature; Intel builds are unsigned
+          if [[ "${{ matrix.os }}" == darwin && "${{ matrix.arch }}" == arm64 ]]; then codesign --verify md-viewer; fi
           status=0
           out=$(./md-viewer 2>&1) || status=$?
           echo "$out"
