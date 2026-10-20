@@ -23,11 +23,13 @@ jobs:
           - { runner: macos-15-intel, os: darwin, arch: amd64 }
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v6
+      # Current Go, not go.mod's 1.22: Go 1.22's linker leaves macOS binaries
+      # with an invalid code signature, so they're killed on launch
+      - uses: actions/setup-go@v7
         with:
-          go-version-file: go.mod
+          go-version: stable
 
       - name: Install GTK and WebKitGTK
         if: matrix.os == 'linux'
@@ -41,6 +43,15 @@ jobs:
       - name: Test
         run: go test ./...
 
+      - name: Smoke test binary
+        run: |
+          # Apple Silicon requires a valid signature; Intel builds are unsigned
+          if [[ "${{ matrix.os }}" == darwin && "${{ matrix.arch }}" == arm64 ]]; then codesign --verify md-viewer; fi
+          status=0
+          out=$(./md-viewer 2>&1) || status=$?
+          echo "$out"
+          [[ $status -eq 1 && "$out" == Usage* ]]
+
       - name: Package
         id: package
         run: |
@@ -52,7 +63,7 @@ jobs:
           tar -czf "$name.tar.gz" "$name"
           echo "name=$name" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.package.outputs.name }}
           path: ${{ steps.package.outputs.name }}.tar.gz
@@ -65,7 +76,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
