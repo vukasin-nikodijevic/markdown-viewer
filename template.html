@@ -473,6 +473,7 @@ mark.search-highlight.current { background: rgba(255, 140, 0, 0.7); }
     <table>
       <tr><td><kbd>Ctrl</kbd> + <kbd>Tab</kbd> / <kbd>Ctrl</kbd> + <kbd>PgDn</kbd></td><td>Next tab</td></tr>
       <tr><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Tab</kbd> / <kbd>Ctrl</kbd> + <kbd>PgUp</kbd></td><td>Previous tab</td></tr>
+      <tr><td><kbd>Ctrl</kbd> + <kbd>O</kbd> (<kbd>Cmd</kbd> + <kbd>O</kbd> on macOS)</td><td>Open file in new tab</td></tr>
       <tr><td><kbd>Ctrl</kbd> + <kbd>W</kbd> / middle-click</td><td>Close tab</td></tr>
     </table>
   </div>
@@ -880,7 +881,7 @@ document.getElementById('quickIndexInput').addEventListener('keydown', function(
     if (e.key === 'f' || e.key === 'F') return;
     if (isHelpShortcut(e)) return;
   }
-  if (isFindShortcut(e)) return;
+  if (isFindShortcut(e) || isOpenShortcut(e)) return;
   e.stopPropagation();
 });
 
@@ -905,6 +906,10 @@ function isFindShortcut(e) {
   return (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === 'f' || e.key === 'F');
 }
 var isMac = /Mac/.test(navigator.platform);
+// Ctrl+O, plus Cmd+O on macOS
+function isOpenShortcut(e) {
+  return (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === 'o' || e.key === 'O');
+}
 
 /* Keyboard shortcuts */
 document.addEventListener('keydown', function(e) {
@@ -944,6 +949,12 @@ document.addEventListener('keydown', function(e) {
   if (e.ctrlKey && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
     e.preventDefault();
     openQuickIndex();
+    return;
+  }
+  if (isOpenShortcut(e)) {
+    e.preventDefault();
+    if (qiVisible) closeQuickIndex();
+    openFileDialog(activeTabId);
     return;
   }
   if (isFindShortcut(e)) {

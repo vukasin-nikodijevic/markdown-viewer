@@ -37,7 +37,7 @@ make
 - **Quick index:** `Ctrl+Shift+A` opens a popup with a live-filtering index of all tabs and their headings (rebuilt on open). Multi-token filter scored by heading match + tab name match; `↑`/`↓`/Enter or click switches to the item's tab and scrolls to the heading (headings without goldmark IDs get fallback IDs; `scroll-margin-top` keeps them below the tab bar).
 - **Help dialog:** `?` toolbar button or `Ctrl+?` toggles a modal listing all shortcuts (`Esc`/click outside closes). The shortcut list is static HTML in `template.html` — keep it in sync when adding shortcuts.
 - **macOS menu:** `menu_darwin.go` (cgo/Cocoa) installs an app + Edit menu after `webview.New` — webview creates none, and Cocoa only dispatches Cmd+C/V/X/A/Z via menu key equivalents. Don't add menu items whose key equivalents clash with JS shortcuts (e.g. Cmd+F, Cmd+W). `Ctrl+C` is mapped to `execCommand('copy')` in JS on macOS.
-- **Tab management:** `Ctrl+Tab`/`Ctrl+PgDown` switch to next tab, `Ctrl+Shift+Tab`/`Ctrl+PgUp` to previous. `Ctrl+W` or middle-click closes a tab.
+- **Tab management:** `Ctrl+Tab`/`Ctrl+PgDown` switch to next tab, `Ctrl+Shift+Tab`/`Ctrl+PgUp` to previous. `Ctrl+W` or middle-click closes a tab. `Ctrl/Cmd+O` calls the `openFileDialog` binding, which shows a native multi-select picker (`dialog_darwin.go` NSOpenPanel, `dialog_linux.go` GTK) starting in the active tab's folder and opens each file via `addTabForFile`.
 
 ## Constraints
 

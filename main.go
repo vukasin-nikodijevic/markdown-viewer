@@ -274,6 +274,24 @@ func main() {
 		}
 	})
 
+	// Ctrl/Cmd+O: native open dialog, starting in the active tab's folder.
+	w.Bind("openFileDialog", func(activeID int64) {
+		dir := ""
+		mu.Lock()
+		for _, t := range tabs {
+			if t.id == activeID {
+				dir = filepath.Dir(t.path)
+			}
+		}
+		mu.Unlock()
+		// Run the modal from the main loop, not inside the JS message callback.
+		w.Dispatch(func() {
+			for _, p := range pickFiles(dir) {
+				addTabForFile(p)
+			}
+		})
+	})
+
 	for _, p := range absPaths {
 		tabs = append(tabs, openTab{id: tabID.Add(1), path: p})
 		watcher.Add(p)

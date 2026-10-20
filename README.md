@@ -73,5 +73,6 @@ md-viewer Makefile
 | `Ctrl+PgDown`      | Next tab           |
 | `Ctrl+Shift+Tab`   | Previous tab       |
 | `Ctrl+PgUp`        | Previous tab       |
+| `Ctrl+O` / `Cmd+O` | Open file in new tab (`Cmd+O` on macOS) |
 | `Ctrl+W`           | Close tab          |
 | Middle-click tab   | Close tab          |
