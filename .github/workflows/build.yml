@@ -89,3 +89,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes
+
+      # Point the Homebrew formula at the new release binaries
+      - uses: actions/checkout@v7
+        with:
+          path: src
+
+      - uses: actions/checkout@v7
+        with:
+          repository: vukasin-nikodijevic/homebrew-tap
+          token: ${{ secrets.TAP_GITHUB_TOKEN }}
+          path: tap
+
+      - name: Update Homebrew tap
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          src/packaging/homebrew/render-formula.sh "$version" dist/checksums.txt > tap/Formula/md-viewer.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "md-viewer $version"
+          git push
