@@ -202,6 +202,7 @@ func main() {
 
 	w := webview.New(false)
 	defer w.Destroy()
+	setupMenu()
 	w.SetTitle("MD Preview")
 	w.SetSize(960, 720, webview.HintNone)
 

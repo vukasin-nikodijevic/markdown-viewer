@@ -10,7 +10,7 @@ A lightweight CLI tool that previews Markdown files in a native webview window w
 - **Live reload** — every open file is watched and re-rendered automatically on save (macOS and Linux), including editors that save via temp file + rename (vim, JetBrains, TextEdit, …)
 - **Dark / Light theme** — dark by default, toggle with toolbar button or `Ctrl+Shift+L`
 - **Zoom** — 180% default, adjust with `Ctrl+` / `Ctrl-` / `Ctrl+0`
-- **In-tab search** — press `/` or `Ctrl+F` to search, `F3`/`Shift+F3` to navigate matches
+- **In-tab search** — press `/`, `Ctrl+F` or `Cmd+F` (macOS) to search, `Enter`/`F3` (with `Shift` to go back) to navigate matches
 - **Quick index** — press `Ctrl+Shift+A` for a live index of all tabs & headings; type to filter, `Enter`/click to jump
 - **Tab management** — switch tabs with `Ctrl+Tab`/`Ctrl+PgDown`, close with `Ctrl+W` or middle-click
 - **Help dialog** — click the `?` toolbar button or press `Ctrl+?` to list all shortcuts
@@ -24,6 +24,12 @@ A lightweight CLI tool that previews Markdown files in a native webview window w
 
 ```bash
 sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev
+```
+
+## Install (macOS, Homebrew)
+
+```bash
+brew install vukasin-nikodijevic/tap/md-viewer
 ```
 
 ## Build & Install
@@ -58,11 +64,11 @@ md-viewer Makefile
 | `Ctrl+Shift+L`     | Toggle theme       |
 | `Ctrl+?`           | Show keyboard shortcuts help |
 | `/`                | Open search        |
-| `Ctrl+F`           | Open search        |
+| `Ctrl+F` / `Cmd+F` | Open search (`Cmd+F` on macOS) |
 | `Ctrl+Shift+A`     | Quick index (all tabs & headings) |
 | `Esc`              | Close search / index / help |
-| `F3`               | Next match         |
-| `Shift+F3`         | Previous match     |
+| `Enter` / `F3`     | Next match         |
+| `Shift+Enter` / `Shift+F3` | Previous match |
 | `Ctrl+Tab`         | Next tab           |
 | `Ctrl+PgDown`      | Next tab           |
 | `Ctrl+Shift+Tab`   | Previous tab       |

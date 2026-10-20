@@ -463,8 +463,8 @@ mark.search-highlight.current { background: rgba(255, 140, 0, 0.7); }
     </table>
     <h3>Search</h3>
     <table>
-      <tr><td><kbd>/</kbd> or <kbd>Ctrl</kbd> + <kbd>F</kbd></td><td>Search in tab</td></tr>
-      <tr><td><kbd>F3</kbd> / <kbd>Shift</kbd> + <kbd>F3</kbd></td><td>Next / previous match</td></tr>
+      <tr><td><kbd>/</kbd> or <kbd>Ctrl</kbd> + <kbd>F</kbd> (<kbd>Cmd</kbd> + <kbd>F</kbd> on macOS)</td><td>Search in tab</td></tr>
+      <tr><td><kbd>Enter</kbd> / <kbd>Shift</kbd> + <kbd>Enter</kbd> or <kbd>F3</kbd> / <kbd>Shift</kbd> + <kbd>F3</kbd></td><td>Next / previous match</td></tr>
       <tr><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>A</kbd></td><td>Quick index (all tabs &amp; headings)</td></tr>
       <tr><td><kbd>&uarr;</kbd> / <kbd>&darr;</kbd>, <kbd>Enter</kbd></td><td>Navigate / open index entry</td></tr>
       <tr><td><kbd>Esc</kbd></td><td>Close search, index or help</td></tr>
@@ -710,6 +710,12 @@ function searchPrev() {
 document.getElementById('searchInput').addEventListener('input', function() {
   performSearch(this.value);
 });
+document.getElementById('searchInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    if (e.shiftKey) searchPrev(); else searchNext();
+  }
+});
 
 /* Quick index (Ctrl+Shift+A): live search over tabs & headings */
 var qiItems = [];
@@ -874,6 +880,7 @@ document.getElementById('quickIndexInput').addEventListener('keydown', function(
     if (e.key === 'f' || e.key === 'F') return;
     if (isHelpShortcut(e)) return;
   }
+  if (isFindShortcut(e)) return;
   e.stopPropagation();
 });
 
@@ -893,8 +900,20 @@ function isHelpShortcut(e) {
   return e.ctrlKey && !e.altKey && (e.key === '?' || (e.shiftKey && e.key === '/'));
 }
 
+// Ctrl+F everywhere, plus Cmd+F on macOS
+function isFindShortcut(e) {
+  return (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === 'f' || e.key === 'F');
+}
+var isMac = /Mac/.test(navigator.platform);
+
 /* Keyboard shortcuts */
 document.addEventListener('keydown', function(e) {
+  // macOS WebKit only copies on Cmd+C (via the native Edit menu); make Ctrl+C work too
+  if (isMac && e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'c' || e.key === 'C')) {
+    e.preventDefault();
+    document.execCommand('copy');
+    return;
+  }
   if (isHelpShortcut(e)) {
     e.preventDefault();
     if (helpVisible()) closeHelp(); else openHelp();
@@ -927,7 +946,7 @@ document.addEventListener('keydown', function(e) {
     openQuickIndex();
     return;
   }
-  if (e.ctrlKey && (e.key === 'f' || e.key === 'F')) {
+  if (isFindShortcut(e)) {
     e.preventDefault();
     if (qiVisible) closeQuickIndex();
     openSearch();
